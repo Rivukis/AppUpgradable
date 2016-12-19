@@ -19,6 +19,8 @@ public protocol AppUpgradable {
     associatedtype Version: RawRepresentable // <-- enum Version: Int {} (do NOT assign a value to any case)
     func upgradeBlock(forVersion version: Version) -> () -> UpgradeResult
     
+    // Opitonal
+    func jumpUpgrade(forVersion version: Version) -> (() -> (UpgradeResult, Version))?
     // Optional (defaults to use UserDefaults.standard)
     func setCurrentVersion(version: Version)
     func getCurrentVersion() -> Version
@@ -44,12 +46,22 @@ public extension AppUpgradable where Version.RawValue == Int {
             }
         }
         
+        func doUpgrade(version: Version) -> (UpgradeResult, Int) {
+            if let jumpUpgrade = jumpUpgrade(forVersion: version) {
+                let (jumpResult, jumpVersion) = jumpUpgrade()
+                return (jumpResult, jumpVersion.rawValue - version.rawValue)
+            }
+            else {
+                return (upgradeBlock(forVersion: version)(), 1)
+            }
+        }
+        
         func upgrade(fromVersion version: Version) throws {
             var nextRawVersion = version.rawValue + 1
             var nonFatalErrors = [Error]()
             
             while let version = Version(rawValue: nextRawVersion) {
-                let result = upgradeBlock(forVersion: version)()
+                let (result, versionBump) = doUpgrade(version: version)
                 
                 switch result {
                 case .greatSuccess:
@@ -71,7 +83,7 @@ public extension AppUpgradable where Version.RawValue == Int {
                 }
                 
                 setCurrentVersion(version: version)
-                nextRawVersion += 1
+                nextRawVersion += versionBump
             }
             
             if nonFatalErrors.count > 0 {
@@ -130,6 +142,13 @@ class AppDelegate: AppUpgradable {
         print("* setting the current version to \(version)\n")
     }
     
+    func jumpUpgrade(forVersion version: Version) -> (() -> (UpgradeResult, Version))? {
+        switch version {
+        case .v2_0: return upgradeSkip_2_0_to_2_1
+        default: return nil
+        }
+    }
+    
     func upgradeBlock(forVersion version: AppDelegate.Version) -> () -> UpgradeResult {
         switch version {
         case .v0_0: return { .greatSuccess } // this is here to satisfy the switch statement without putting in 'default'
@@ -178,6 +197,15 @@ class AppDelegate: AppUpgradable {
         print("")
         
         return .greatSuccess
+    }
+    
+    func upgradeSkip_2_0_to_2_1() -> (UpgradeResult, Version) {
+        print("doing stuff for 1.1 to 2.1 upgrade (avoiding the mistake in 2.0)")
+        print("- pushing files to the cloud")
+        print("-- correctly pushing files to the cloud")
+        print("")
+        
+        return (.greatSuccess, .v2_1)
     }
 }
 
