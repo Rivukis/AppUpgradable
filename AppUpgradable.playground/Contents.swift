@@ -12,16 +12,16 @@ public enum UpgradeResult {
     case nonFatalError(Error)
     case _jumper([UpgradeResult], Int)
     
-    func jump(toRawVersion rawVersion: Int) -> UpgradeResult {
+    func jump<T: RawRepresentable>(toVersion version: T) -> UpgradeResult where T.RawValue == Int {
         switch self {
         case .errors(let errors):
-            return ._jumper(errors, rawVersion)
+            return ._jumper(errors, version.rawValue)
         case .fatalError,
              .nonFatalError,
              .success:
-            return ._jumper([self], rawVersion)
+            return ._jumper([self], version.rawValue)
         case ._jumper(let errors, _):
-            return ._jumper(errors, rawVersion)
+            return ._jumper(errors, version.rawValue)
         }
     }
 }
@@ -205,7 +205,7 @@ class AppUpgrader: AppUpgradable {
         print("- pushing files to the cloud")
         print("-- correctly pushing files to the cloud")
         
-        return UpgradeResult.success.jump(toRawVersion: Version.v2_1.rawValue)
+        return UpgradeResult.success.jump(toVersion: Version.v2_1)
     }
 
     func upgradeToVersion_2_1() -> UpgradeResult {
@@ -226,7 +226,7 @@ class AppUpgrader: AppUpgradable {
         print("doing stuff for 2.1 to 4.0 upgrade (avoid changing the file structure just to change it back)")
         print("- NOT changing to a new file structure")
         
-        return UpgradeResult.success.jump(toRawVersion: Version.v4_0.rawValue)
+        return UpgradeResult.success.jump(toVersion: Version.v4_0)
     }
     
     func upgradeToVersion_4_0() -> UpgradeResult {
