@@ -25,14 +25,14 @@ class MyAppUpgrader: AppUpgradable {
     }
     
     func upgradeApp() throws {
-        try upgrader.upgrade(toVersion: upgrader.getCurrentVersion(), upgradeClosure: upgrade)
+        try upgrader.upgrade(toVersion: upgrader.getCurrentVersion(), upgradeClosure: upgradeToVersion)
     }
     
     func getCurrentVersion() -> AppVersion {
         return upgrader.getCurrentVersion()
     }
     
-    private func upgrade(_ version: MyAppVersion) -> () -> UpgradeResult {
+    private func upgradeToVersion(_ version: MyAppVersion) -> () -> UpgradeResult {
         switch version {
         case .v0_0: return { .success } // this is here to satisfy the switch statement without putting in 'default'
         case .v1_0: return upgradeToVersion_1_0
@@ -43,6 +43,8 @@ class MyAppUpgrader: AppUpgradable {
         case .v4_0: return upgradeToVersion_4_0
         }
     }
+    
+    // MARK: - Upgrade Methods
     
     private func upgradeToVersion_1_0() -> UpgradeResult {
         print("doing stuff for 0.0 to 1.0 initial launch")
