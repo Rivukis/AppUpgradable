@@ -35,9 +35,11 @@ public protocol AppUpgradable {
 
 open class AppUpgrader<T: RawRepresentable> where T.RawValue == Int {
     
+    private let userDefaults: UserDefaults
     private let name: String
     
-    public init(name: String) {
+    public init(userDefaults: UserDefaults = UserDefaults.standard, name: String) {
+        self.userDefaults = userDefaults
         self.name = name
     }
     
@@ -50,7 +52,7 @@ open class AppUpgrader<T: RawRepresentable> where T.RawValue == Int {
     }
     
     open func getCurrentVersion() -> T {
-        let savedVersion = UserDefaults.standard.integer(forKey: name)
+        let savedVersion = userDefaults.integer(forKey: name)
         return makeVersion(savedVersion)!
     }
     
@@ -110,8 +112,8 @@ open class AppUpgrader<T: RawRepresentable> where T.RawValue == Int {
     }
     
     private func setCurrentVersion(version: T) {
-        UserDefaults.standard.set(version.rawValue, forKey: name)
-        UserDefaults.standard.synchronize()
+        userDefaults.set(version.rawValue, forKey: name)
+        userDefaults.synchronize()
     }
     
     private func parseErrors(from upgradResults: [UpgradeResult]) -> (fatal: [Error], nonFatal: [Error]) {
