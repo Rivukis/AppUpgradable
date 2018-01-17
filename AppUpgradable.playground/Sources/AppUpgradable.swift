@@ -33,7 +33,7 @@ public protocol AppUpgradable {
     func getCurrentVersion() -> AppVersion
 }
 
-public class AppUpgrader<T: RawRepresentable> where T.RawValue == Int {
+open class AppUpgrader<T: RawRepresentable> where T.RawValue == Int {
     
     private let name: String
     
@@ -43,12 +43,14 @@ public class AppUpgrader<T: RawRepresentable> where T.RawValue == Int {
     
     // MARK: - Public Methods
     
-    public func upgrade(toVersion version: T, upgradeClosure: @escaping (_ version: T) -> () -> UpgradeResult) throws {
-        try upgrade(fromVersion: version, upgradeClosure: upgradeClosure)
+    /// The following `open` methods are `open` for testing only!
+    
+    open func upgrade(upgradeClosure: @escaping (_ version: T) -> UpgradeResult) throws {
+        try upgrade(fromVersion: getCurrentVersion(), upgradeClosure: upgradeClosure)
     }
     
-    public func getCurrentVersion() -> T {
-        let savedVersion = UserDefaults.standard.object(forKey: name) as? Int ?? 0
+    open func getCurrentVersion() -> T {
+        let savedVersion = UserDefaults.standard.integer(forKey: name)
         return makeVersion(savedVersion)!
     }
     
@@ -62,13 +64,13 @@ public class AppUpgrader<T: RawRepresentable> where T.RawValue == Int {
         return makeVersion(version.rawValue + 1)
     }
     
-    private func upgrade(fromVersion version: T, upgradeClosure: @escaping (_ version: T) -> () -> UpgradeResult) throws {
+    private func upgrade(fromVersion version: T, upgradeClosure: @escaping (_ version: T) -> UpgradeResult) throws {
         var nextRawVersion = version
         var nonFatalErrors = [Error]()
         
         while let version = nextVersion(nextRawVersion)/* Version(rawValue: nextRawVersion)*/ {
             var upgradedToVersion = version
-            let result = upgradeClosure(version)()
+            let result = upgradeClosure(version)
             
             switch result {
             case .success:

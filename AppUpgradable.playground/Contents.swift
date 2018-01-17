@@ -18,31 +18,31 @@ enum MyAppVersion: Int, AppVersion {
 }
 
 class MyAppUpgrader: AppUpgradable {
-    private let upgrader: AppUpgrader<MyAppVersion>
+    private let appUpgrader: AppUpgrader<MyAppVersion>
     
-    init() {
-        self.upgrader = AppUpgrader<MyAppVersion>(name: "com.company.myappversion")
+    init(appUpgrader: AppUpgrader<MyAppVersion>) {
+        self.appUpgrader = appUpgrader
     }
     
     func upgradeApp() throws {
-        try upgrader.upgrade(toVersion: upgrader.getCurrentVersion(), upgradeClosure: upgradeToVersion)
+        try appUpgrader.upgrade(upgradeClosure: upgradeToVersion)
     }
     
     func getCurrentVersion() -> AppVersion {
-        return upgrader.getCurrentVersion()
+        return appUpgrader.getCurrentVersion()
     }
     
     // MARK: - Upgrade Methods
     
-    private func upgradeToVersion(_ version: MyAppVersion) -> () -> UpgradeResult {
+    private func upgradeToVersion(_ version: MyAppVersion) -> UpgradeResult {
         switch version {
-        case .v0_0: return { .success } // this is here to satisfy the switch statement without putting in 'default'
-        case .v1_0: return upgradeToVersion_1_0
-        case .v1_1: return upgradeToVersion_1_1
-        case .v2_0: return upgradeToVersion_2_0_new // (issue)
-        case .v2_1: return upgradeToVersion_2_1
-        case .v3_0: return upgradeToVersion_3_0_new // (issue)
-        case .v4_0: return upgradeToVersion_4_0
+        case .v0_0: return .success // this is here to satisfy the switch statement without putting in 'default'
+        case .v1_0: return upgradeToVersion_1_0()
+        case .v1_1: return upgradeToVersion_1_1()
+        case .v2_0: return upgradeToVersion_2_0_new() // (issue)
+        case .v2_1: return upgradeToVersion_2_1()
+        case .v3_0: return upgradeToVersion_3_0_new() // (issue)
+        case .v4_0: return upgradeToVersion_4_0()
         }
     }
 
@@ -111,7 +111,7 @@ class MyAppUpgrader: AppUpgradable {
     }
 }
 
-let myAppUpgrader = MyAppUpgrader()
+let myAppUpgrader = MyAppUpgrader(appUpgrader: AppUpgrader<MyAppVersion>(name: "com.company.myappversion"))
 
 do {
     try myAppUpgrader.upgradeApp()
@@ -131,3 +131,19 @@ do {
 }
 
 print("\nFinished Upgrade: new version \(myAppUpgrader.getCurrentVersion())")
+
+// Creating a Spry fake proof of concept
+class FakeAppUpgrader: AppUpgrader<MyAppVersion> {
+    init() {
+        super.init(name: "")
+    }
+    
+    override func upgrade(upgradeClosure: @escaping (MyAppVersion) -> UpgradeResult) throws {
+        // try throwingSpryify(upgradeClosure)
+    }
+    
+    override func getCurrentVersion() -> MyAppVersion {
+        return .v0_0
+        // return spryify()
+    }
+}
