@@ -15,13 +15,25 @@ enum MyAppVersion: Int, AppVersion {
     case v2_1
     case v3_0
     case v4_0
+}
+
+class MyAppUpgrader: AppUpgradable {
+    private let upgrader: AppUpgrader<MyAppVersion>
     
-    var name: String {
-        return "com.company.myappversion"
+    init() {
+        self.upgrader = AppUpgrader<MyAppVersion>(name: "com.company.myappversion")
     }
     
-    func upgradeClosure() -> () -> UpgradeResult {
-        switch self {
+    func upgradeApp() throws {
+        try upgrader.upgrade(toVersion: upgrader.getCurrentVersion(), upgradeClosure: upgrade)
+    }
+    
+    func getCurrentVersion() -> AppVersion {
+        return upgrader.getCurrentVersion()
+    }
+    
+    private func upgrade(_ version: MyAppVersion) -> () -> UpgradeResult {
+        switch version {
         case .v0_0: return { .success } // this is here to satisfy the switch statement without putting in 'default'
         case .v1_0: return upgradeToVersion_1_0
         case .v1_1: return upgradeToVersion_1_1
@@ -32,14 +44,14 @@ enum MyAppVersion: Int, AppVersion {
         }
     }
     
-    func upgradeToVersion_1_0() -> UpgradeResult {
+    private func upgradeToVersion_1_0() -> UpgradeResult {
         print("doing stuff for 0.0 to 1.0 initial launch")
         print("- like setup user defaults")
         
         return .success
     }
     
-    func upgradeToVersion_1_1() -> UpgradeResult {
+    private func upgradeToVersion_1_1() -> UpgradeResult {
         print("doing stuff for 1.0 to 1.1 upgrade")
         print("- updating user settings")
         print("-- (non-fatal) couldn't retain the user's volume setting")
@@ -47,7 +59,7 @@ enum MyAppVersion: Int, AppVersion {
         return .nonFatalError(UserDefaultsError.lostVolumeSetting)
     }
     
-    func upgradeToVersion_2_0_original() -> UpgradeResult {
+    private func upgradeToVersion_2_0_original() -> UpgradeResult {
         var errors = [UpgradeResult]()
         print("doing stuff for 1.1 to 2.0 upgrade (original)")
         print("- converting files")
@@ -60,7 +72,7 @@ enum MyAppVersion: Int, AppVersion {
         return .errors(errors)
     }
     
-    func upgradeToVersion_2_0_new() -> UpgradeResult {
+    private func upgradeToVersion_2_0_new() -> UpgradeResult {
         print("doing stuff for 1.1 to 2.1 upgrade (avoiding the mistake in 2.0)")
         print("- pushing files to the cloud")
         print("-- correctly pushing files to the cloud")
@@ -68,28 +80,28 @@ enum MyAppVersion: Int, AppVersion {
         return UpgradeResult.success.jump(toVersion: MyAppVersion.v2_1)
     }
     
-    func upgradeToVersion_2_1() -> UpgradeResult {
+    private func upgradeToVersion_2_1() -> UpgradeResult {
         print("doing stuff for 2.0 to 2.1 upgrade")
         print("- fixing issue caused by 2.0 upgrade")
         
         return .success
     }
     
-    func upgradeToVersion_3_0_original() -> UpgradeResult {
+    private func upgradeToVersion_3_0_original() -> UpgradeResult {
         print("doing stuff for 2.1 to 3.0 upgrade (original)")
         print("- change to a new file structure")
         
         return .success
     }
     
-    func upgradeToVersion_3_0_new() -> UpgradeResult {
+    private func upgradeToVersion_3_0_new() -> UpgradeResult {
         print("doing stuff for 2.1 to 4.0 upgrade (avoid changing the file structure just to change it back)")
         print("- NOT changing to a new file structure")
         
         return UpgradeResult.success.jump(toVersion: MyAppVersion.v4_0)
     }
     
-    func upgradeToVersion_4_0() -> UpgradeResult {
+    private func upgradeToVersion_4_0() -> UpgradeResult {
         print("doing stuff for 3.0 to 4.0 upgrade")
         print("- 3.0 was a mistake, change file structure back to what it was")
         
@@ -97,7 +109,7 @@ enum MyAppVersion: Int, AppVersion {
     }
 }
 
-let myAppUpgrader = AppUpgrader<MyAppVersion>(version: .v1_0)
+let myAppUpgrader = MyAppUpgrader()
 
 do {
     try myAppUpgrader.upgradeApp()

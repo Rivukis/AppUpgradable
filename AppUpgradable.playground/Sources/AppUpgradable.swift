@@ -26,27 +26,29 @@ public enum UpgradeResult {
     }
 }
 
-public protocol AppVersion {
-    var name: String { get }
-    func upgradeClosure() -> () -> UpgradeResult
+public protocol AppVersion { }
+
+public protocol AppUpgradable {
+    func upgradeApp() throws
+    func getCurrentVersion() -> AppVersion
 }
 
-public class AppUpgrader<T: AppVersion & RawRepresentable> where T.RawValue == Int {
+public class AppUpgrader<T: RawRepresentable> where T.RawValue == Int {
     
-    private let version: T
+    private let name: String
     
-    public init(version: T) {
-        self.version = version
+    public init(name: String) {
+        self.name = name
     }
     
     // MARK: - Public Methods
     
-    public func upgradeApp() throws {
-        try upgrade(fromVersion: version)
+    public func upgrade(toVersion version: T, upgradeClosure: @escaping (_ version: T) -> () -> UpgradeResult) throws {
+        try upgrade(fromVersion: version, upgradeClosure: upgradeClosure)
     }
     
     public func getCurrentVersion() -> T {
-        let savedVersion = UserDefaults.standard.object(forKey: version.name) as? Int ?? 0
+        let savedVersion = UserDefaults.standard.object(forKey: name) as? Int ?? 0
         return makeVersion(savedVersion)!
     }
     
@@ -60,13 +62,13 @@ public class AppUpgrader<T: AppVersion & RawRepresentable> where T.RawValue == I
         return makeVersion(version.rawValue + 1)
     }
     
-    private func upgrade(fromVersion version: T) throws {
+    private func upgrade(fromVersion version: T, upgradeClosure: @escaping (_ version: T) -> () -> UpgradeResult) throws {
         var nextRawVersion = version
         var nonFatalErrors = [Error]()
         
         while let version = nextVersion(nextRawVersion)/* Version(rawValue: nextRawVersion)*/ {
             var upgradedToVersion = version
-            let result = version.upgradeClosure()()
+            let result = upgradeClosure(version)()
             
             switch result {
             case .success:
@@ -106,7 +108,7 @@ public class AppUpgrader<T: AppVersion & RawRepresentable> where T.RawValue == I
     }
     
     private func setCurrentVersion(version: T) {
-        UserDefaults.standard.set(version.rawValue, forKey: version.name)
+        UserDefaults.standard.set(version.rawValue, forKey: name)
         UserDefaults.standard.synchronize()
     }
     
