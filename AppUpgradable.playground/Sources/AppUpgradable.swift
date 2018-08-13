@@ -11,7 +11,7 @@ public enum UpgradeResult {
     case fatalError(Error)
     case nonFatalError(Error)
     case _jumper([UpgradeResult], Int)
-
+    
     public func jump<T: RawRepresentable>(toVersion version: T) -> UpgradeResult where T.RawValue == Int {
         switch self {
         case .errors(let errors):
@@ -26,82 +26,96 @@ public enum UpgradeResult {
     }
 }
 
+public protocol AppVersion { }
+
 public protocol AppUpgradable {
-    // Required
-    associatedtype Version: RawRepresentable // <-- enum Version: Int {} (do NOT assign a value to any case)
-    func upgradeClosure(toVersion version: Version) -> () -> UpgradeResult
-
-    // Optional (defaults to use UserDefaults.standard with key 'UserDefaultsKey_CurrentVersion')
-    func setCurrentVersion(version: Version)
-    func getCurrentVersion() -> Version
-
-    // Do NOT override
-    func upgradeApp()
+    func upgradeApp() throws
+    func getCurrentVersion() -> AppVersion
 }
 
-public extension AppUpgradable where Version.RawValue == Int {
-    public func upgradeApp() throws {
-        func upgrade(fromVersion version: Version) throws {
-            var nextRawVersion = version.rawValue + 1
-            var nonFatalErrors = [Error]()
-
-            while let version = Version(rawValue: nextRawVersion) {
-                var upgradedToVersion = version
-                let result = upgradeClosure(toVersion: version)()
-
-                switch result {
-                case .success:
-                    break
-
-                case .fatalError(let error):
-                    throw UpgradeError.Canceled(rawVersion: version.rawValue, fatalErrors: [error], nonFatalErrors: nonFatalErrors)
-
-                case .nonFatalError(let error):
-                    nonFatalErrors.append(error)
-
-                case ._jumper(let errors, let jumpVersion):
-                    upgradedToVersion = Version(rawValue: jumpVersion)!
-                    let parsedErrors = parseErrors(from: errors)
-                    nonFatalErrors.append(contentsOf: parsedErrors.nonFatal)
-
-                    if parsedErrors.fatal.count > 0 {
-                        throw UpgradeError.Canceled(rawVersion: version.rawValue, fatalErrors: parsedErrors.fatal, nonFatalErrors: nonFatalErrors)
-                    }
-
-                case .errors(let errors):
-                    let parsedErrors = parseErrors(from: errors)
-                    nonFatalErrors.append(contentsOf: parsedErrors.nonFatal)
-
-                    if parsedErrors.fatal.count > 0 {
-                        throw UpgradeError.Canceled(rawVersion: version.rawValue, fatalErrors: parsedErrors.fatal, nonFatalErrors: nonFatalErrors)
-                    }
+open class AppUpgrader<T: RawRepresentable> where T.RawValue == Int {
+    
+    private let userDefaults: UserDefaults
+    private let name: String
+    
+    public init(userDefaults: UserDefaults = UserDefaults.standard, name: String) {
+        self.userDefaults = userDefaults
+        self.name = name
+    }
+    
+    // MARK: - Public Methods
+    
+    /// The following `open` methods are `open` for testing only!
+    
+    open func upgrade(upgradeClosure: @escaping (_ version: T) -> UpgradeResult) throws {
+        try upgrade(fromVersion: getCurrentVersion(), upgradeClosure: upgradeClosure)
+    }
+    
+    open func getCurrentVersion() -> T {
+        let savedVersion = userDefaults.integer(forKey: name)
+        return makeVersion(savedVersion)!
+    }
+    
+    // MARK: - Private Methods
+    
+    private func makeVersion(_ number: Int) -> T? {
+        return T.init(rawValue: number)
+    }
+    
+    private func nextVersion(_ version: T) -> T? {
+        return makeVersion(version.rawValue + 1)
+    }
+    
+    private func upgrade(fromVersion version: T, upgradeClosure: @escaping (_ version: T) -> UpgradeResult) throws {
+        var nextRawVersion = version
+        var nonFatalErrors = [Error]()
+        
+        while let version = nextVersion(nextRawVersion)/* Version(rawValue: nextRawVersion)*/ {
+            var upgradedToVersion = version
+            let result = upgradeClosure(version)
+            
+            switch result {
+            case .success:
+                break
+                
+            case .fatalError(let error):
+                throw UpgradeError.Canceled(rawVersion: version.rawValue, fatalErrors: [error], nonFatalErrors: nonFatalErrors)
+                
+            case .nonFatalError(let error):
+                nonFatalErrors.append(error)
+                
+            case ._jumper(let errors, let jumpVersion):
+                upgradedToVersion = makeVersion(jumpVersion)!
+                let parsedErrors = parseErrors(from: errors)
+                nonFatalErrors.append(contentsOf: parsedErrors.nonFatal)
+                
+                if parsedErrors.fatal.count > 0 {
+                    throw UpgradeError.Canceled(rawVersion: version.rawValue, fatalErrors: parsedErrors.fatal, nonFatalErrors: nonFatalErrors)
                 }
-
-                setCurrentVersion(version: upgradedToVersion)
-                nextRawVersion = upgradedToVersion.rawValue + 1
+                
+            case .errors(let errors):
+                let parsedErrors = parseErrors(from: errors)
+                nonFatalErrors.append(contentsOf: parsedErrors.nonFatal)
+                
+                if parsedErrors.fatal.count > 0 {
+                    throw UpgradeError.Canceled(rawVersion: version.rawValue, fatalErrors: parsedErrors.fatal, nonFatalErrors: nonFatalErrors)
+                }
             }
-
-            if nonFatalErrors.count > 0 {
-                throw UpgradeError.CompletedWithErrors(errors: nonFatalErrors)
-            }
+            
+            setCurrentVersion(version: upgradedToVersion)
+            nextRawVersion = upgradedToVersion
         }
-
-        try upgrade(fromVersion: getCurrentVersion())
+        
+        if nonFatalErrors.count > 0 {
+            throw UpgradeError.CompletedWithErrors(errors: nonFatalErrors)
+        }
     }
-
-    var userDefaultsKey_CurrentVersion: String {
-        return "UserDefaultsKey_CurrentVersion"
+    
+    private func setCurrentVersion(version: T) {
+        userDefaults.set(version.rawValue, forKey: name)
+        userDefaults.synchronize()
     }
-
-    func setCurrentVersion(version: Version) {
-        UserDefaults.standard.set(version.rawValue, forKey: userDefaultsKey_CurrentVersion)
-        UserDefaults.standard.synchronize()
-    }
-
-    func getCurrentVersion() -> Version {
-        return UserDefaults.standard.object(forKey: userDefaultsKey_CurrentVersion) as? Version ?? Version(rawValue: 0)!
-    }
-
+    
     private func parseErrors(from upgradResults: [UpgradeResult]) -> (fatal: [Error], nonFatal: [Error]) {
         return upgradResults.reduce((fatal: [Error](), nonFatal: [Error]())) {
             var results = $0
@@ -112,14 +126,8 @@ public extension AppUpgradable where Version.RawValue == Int {
                 results.nonFatal.append(error)
             default: break
             }
-
+            
             return results
         }
-    }
-}
-
-public extension AppUpgradable {
-    func upgradeApp() {
-        fatalError("Version.RawValue must be of type Int. It's easiest if you make it an enum of type Int, listing out the versions in order without assigning any values")
     }
 }
