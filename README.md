@@ -20,8 +20,8 @@ To see and run the tests for `AppUpgradable`. Download the playground and run it
 
 ## Requirements
 
-* Xcode 8
-* Swift 3
+* Xcode 9
+* Swift 4
 
 ## Installation
 
