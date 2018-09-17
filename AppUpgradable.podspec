@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'AppUpgradable'
-  s.version          = '1.0'
+  s.version          = '1.1'
   s.summary          = 'Convenient way to migrate your app from one version to the next.'
 
   s.description      = <<-DESC
